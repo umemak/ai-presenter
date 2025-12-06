@@ -35,7 +35,7 @@ export const renderer = jsxRenderer(({ children }) => {
           </header>
 
           <main id="main-content" class="bg-white rounded-xl shadow-lg p-6 min-h-[600px] relative">
-            <!-- Dynamic Content -->
+            {/* Dynamic Content */}
             <div id="upload-section" class="text-center py-20">
               <div class="mb-6">
                 <i class="fas fa-file-pdf text-6xl text-red-500 mb-4"></i>

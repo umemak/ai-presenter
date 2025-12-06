@@ -1,11 +1,12 @@
 // State management
 const state = {
   pdfDoc: null,
-  slides: [], // { pageNum, image, script, audioUrl, status: 'pending'|'processing'|'ready'|'error' }
+  slides: [], // { pageNum, image, script, status: 'pending'|'processing'|'ready'|'error' }
   currentSlideIndex: 0,
   isPlaying: false,
-  currentAudio: null,
-  totalSlides: 0
+  totalSlides: 0,
+  speechSynthesis: window.speechSynthesis,
+  currentUtterance: null
 };
 
 // DOM Elements
@@ -58,7 +59,6 @@ async function handleFileUpload(e) {
       pageNum: i + 1,
       image: null,
       script: null,
-      audioUrl: null,
       status: 'pending'
     }));
 
@@ -77,19 +77,17 @@ async function handleFileUpload(e) {
 
 async function processSlides() {
   for (let i = 0; i < state.totalSlides; i++) {
-    updateProcessingStatus(i, state.totalSlides, `スライド ${i + 1}/${state.totalSlides} を解析中...`);
+    updateProcessingStatus(i, state.totalSlides, `スライド ${i + 1}/${state.totalSlides} を解析中... (Cloudflare AI)`);
     
     try {
       // 1. Convert PDF page to Image
       const imageUrl = await renderPageToImage(i + 1);
       state.slides[i].image = imageUrl;
       
-      // 2. Generate Script (API)
-      // Context: inform AI about the position (first slide, last slide, etc.)
+      // 2. Generate Script (Cloudflare Workers AI)
       let context = "";
-      if (i === 0) context = "これは最初のスライド（タイトルスライド）です。プレゼンの導入として挨拶を含めてください。";
-      else if (i === state.totalSlides - 1) context = "これは最後のスライドです。まとめと締めの挨拶を含めてください。";
-      else context = `これは ${i+1} 枚目のスライドです。`;
+      if (i === 0) context = "これは最初のスライドです。導入を含めてください。";
+      else if (i === state.totalSlides - 1) context = "これは最後のスライドです。締めを含めてください。";
 
       const scriptRes = await fetch('/api/generate-script', {
         method: 'POST',
@@ -100,23 +98,12 @@ async function processSlides() {
       if (!scriptRes.ok) throw new Error('Script generation failed');
       const scriptData = await scriptRes.json();
       state.slides[i].script = scriptData.script;
-
-      // 3. Generate Audio (API)
-      const audioRes = await fetch('/api/generate-audio', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: scriptData.script })
-      });
-
-      if (!audioRes.ok) throw new Error('Audio generation failed');
-      const audioData = await audioRes.json();
-      state.slides[i].audioUrl = audioData.audio;
       state.slides[i].status = 'ready';
 
     } catch (err) {
       console.error(`Error processing slide ${i+1}:`, err);
       state.slides[i].status = 'error';
-      state.slides[i].script = '(エラー: 生成に失敗しました)';
+      state.slides[i].script = '(AI解析エラー: スライドの内容を読み取れませんでした)';
     }
     
     // Update progress bar
@@ -127,7 +114,7 @@ async function processSlides() {
 
 async function renderPageToImage(pageNum) {
   const page = await state.pdfDoc.getPage(pageNum);
-  const viewport = page.getViewport({ scale: 1.5 }); // Slightly higher scale for quality
+  const viewport = page.getViewport({ scale: 1.5 }); 
   
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
@@ -143,11 +130,8 @@ async function renderPageToImage(pageNum) {
 function loadSlide(index) {
   if (index < 0 || index >= state.totalSlides) return;
   
-  // Stop current audio if playing
-  if (state.currentAudio) {
-    state.currentAudio.pause();
-    state.currentAudio = null;
-  }
+  // Stop current audio
+  cancelSpeech();
 
   state.currentSlideIndex = index;
   const slide = state.slides[index];
@@ -163,46 +147,66 @@ function loadSlide(index) {
 
   // Auto-play if in playing mode
   if (state.isPlaying && slide.status === 'ready') {
-    playAudio(slide.audioUrl);
+    speakText(slide.script);
   } else {
     setPlayState(false);
   }
 }
 
-function playAudio(url) {
-  if (!url) return;
+function speakText(text) {
+  if (!text) return;
   
-  state.currentAudio = new Audio(url);
-  state.currentAudio.onended = () => {
+  cancelSpeech();
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = 'ja-JP';
+  utterance.rate = 1.0; // Speed
+  utterance.pitch = 1.0;
+
+  utterance.onend = () => {
+    state.currentUtterance = null;
     if (state.isPlaying) {
       if (state.currentSlideIndex < state.totalSlides - 1) {
-        navigateSlide(1);
+        navigateSlide(1); // Next slide
       } else {
         setPlayState(false); // Finished
       }
     }
   };
-  
-  state.currentAudio.play().catch(e => {
-    console.error("Playback failed:", e);
+
+  utterance.onerror = (e) => {
+    console.error("Speech error:", e);
     setPlayState(false);
-  });
+  };
+
+  state.currentUtterance = utterance;
+  state.speechSynthesis.speak(utterance);
+}
+
+function cancelSpeech() {
+  if (state.speechSynthesis.speaking) {
+    state.speechSynthesis.cancel();
+  }
+  state.currentUtterance = null;
 }
 
 function togglePlay() {
   if (state.isPlaying) {
     setPlayState(false);
-    if (state.currentAudio) state.currentAudio.pause();
+    if (state.speechSynthesis.speaking) {
+      state.speechSynthesis.pause(); // or cancel() if we want to stop completely
+    }
   } else {
     setPlayState(true);
-    // If we have audio for current slide, play it. Otherwise it will play when loaded.
-    const slide = state.slides[state.currentSlideIndex];
-    if (slide && slide.audioUrl) {
-      playAudio(slide.audioUrl);
-    } else if (slide && slide.status === 'error') {
-        // Skip error slides or just stop? Let's stop for now.
-        alert('このスライドの音声生成に失敗しているため再生できません。');
-        setPlayState(false);
+    
+    if (state.speechSynthesis.paused) {
+       state.speechSynthesis.resume();
+    } else if (!state.speechSynthesis.speaking) {
+       // Start speaking current slide
+       const slide = state.slides[state.currentSlideIndex];
+       if (slide && slide.script) {
+         speakText(slide.script);
+       }
     }
   }
 }
@@ -210,7 +214,7 @@ function togglePlay() {
 function setPlayState(playing) {
   state.isPlaying = playing;
   const icon = elements.playPauseBtn.querySelector('i');
-  const text = elements.playPauseBtn.childNodes[1]; // Text node
+  const text = elements.playPauseBtn.childNodes[1];
   
   if (playing) {
     icon.className = 'fas fa-pause mr-2';
@@ -251,6 +255,7 @@ function resetUI() {
   elements.processingSection.classList.add('hidden');
   elements.presentationSection.classList.add('hidden');
   elements.fileInput.value = '';
+  cancelSpeech();
 }
 
 function updateProcessingStatus(current, total, text) {

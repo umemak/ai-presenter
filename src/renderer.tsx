@@ -31,7 +31,7 @@ export const renderer = jsxRenderer(({ children }) => {
             <h1 class="text-4xl font-bold text-blue-600 mb-2">
               <i class="fas fa-robot mr-2"></i>AI Presenter
             </h1>
-            <p class="text-gray-600">スライド（PDF）をアップロードすると、AIがプレゼンしてくれます</p>
+            <p class="text-gray-600">スライド（PDF）をアップロードすると、AIがプレゼンしてくれます (Powered by Cloudflare AI)</p>
           </header>
 
           <main id="main-content" class="bg-white rounded-xl shadow-lg p-6 min-h-[600px] relative">

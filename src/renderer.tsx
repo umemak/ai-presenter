@@ -27,7 +27,12 @@ export const renderer = (c: Context) => {
       </head>
       <body class="bg-gray-50 min-h-screen text-gray-800">
         <div id="app" class="container mx-auto px-4 py-8 max-w-5xl">
-          <div class="flex justify-end mb-4">
+          <div class="flex justify-between mb-4">
+            <div class="space-x-2">
+              <button id="load-presentations-btn" class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition text-sm">
+                <i class="fas fa-folder-open mr-2"></i>読み込み
+              </button>
+            </div>
             <button id="logout-btn" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition text-sm">
               <i class="fas fa-sign-out-alt mr-2"></i>ログアウト
             </button>
@@ -67,6 +72,9 @@ export const renderer = (c: Context) => {
                   Slide <span id="current-slide-num">1</span> / <span id="total-slides-num">--</span>
                 </div>
                 <div class="space-x-2">
+                  <button id="save-presentation-btn" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                    <i class="fas fa-save mr-2"></i>保存
+                  </button>
                   <button id="prev-btn" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50">
                     <i class="fas fa-chevron-left"></i>
                   </button>

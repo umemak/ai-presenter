@@ -5,6 +5,7 @@ import { authMiddleware, login, setSession, clearSession } from './auth'
 
 type Bindings = {
   AI: any
+  DB: D1Database
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -87,7 +88,91 @@ ${context ? `追加コンテキスト: ${context}` : ''}`;
   }
 })
 
-// Audio generation is now handled by the browser (Web Speech API) to be free and faster
-// The /api/generate-audio endpoint is removed
+// API: Save presentation to database
+app.post('/api/save-presentation', async (c) => {
+  try {
+    const { filename, slides } = await c.req.json()
+    
+    if (!filename || !slides || slides.length === 0) {
+      return c.json({ error: 'Invalid data' }, 400)
+    }
+
+    // Insert presentation
+    const presentationResult = await c.env.DB.prepare(
+      'INSERT INTO presentations (filename, total_slides) VALUES (?, ?)'
+    ).bind(filename, slides.length).run()
+
+    const presentationId = presentationResult.meta.last_row_id
+
+    // Insert slides
+    for (const slide of slides) {
+      await c.env.DB.prepare(
+        'INSERT INTO slides (presentation_id, slide_number, image_data, script) VALUES (?, ?, ?, ?)'
+      ).bind(presentationId, slide.pageNum, slide.image, slide.script).run()
+    }
+
+    return c.json({ success: true, id: presentationId })
+  } catch (error: any) {
+    console.error('Save error:', error)
+    return c.json({ error: error.message || 'Failed to save presentation' }, 500)
+  }
+})
+
+// API: Get presentation list
+app.get('/api/presentations', async (c) => {
+  try {
+    const result = await c.env.DB.prepare(
+      'SELECT id, filename, total_slides, created_at FROM presentations ORDER BY created_at DESC LIMIT 50'
+    ).all()
+
+    return c.json({ presentations: result.results || [] })
+  } catch (error: any) {
+    console.error('Get presentations error:', error)
+    return c.json({ error: error.message || 'Failed to get presentations' }, 500)
+  }
+})
+
+// API: Get presentation by ID
+app.get('/api/presentations/:id', async (c) => {
+  try {
+    const id = c.req.param('id')
+
+    // Get presentation info
+    const presentation = await c.env.DB.prepare(
+      'SELECT * FROM presentations WHERE id = ?'
+    ).bind(id).first()
+
+    if (!presentation) {
+      return c.json({ error: 'Presentation not found' }, 404)
+    }
+
+    // Get slides
+    const slidesResult = await c.env.DB.prepare(
+      'SELECT slide_number, image_data, script FROM slides WHERE presentation_id = ? ORDER BY slide_number'
+    ).bind(id).all()
+
+    return c.json({
+      presentation,
+      slides: slidesResult.results || []
+    })
+  } catch (error: any) {
+    console.error('Get presentation error:', error)
+    return c.json({ error: error.message || 'Failed to get presentation' }, 500)
+  }
+})
+
+// API: Delete presentation
+app.delete('/api/presentations/:id', async (c) => {
+  try {
+    const id = c.req.param('id')
+
+    await c.env.DB.prepare('DELETE FROM presentations WHERE id = ?').bind(id).run()
+
+    return c.json({ success: true })
+  } catch (error: any) {
+    console.error('Delete error:', error)
+    return c.json({ error: error.message || 'Failed to delete presentation' }, 500)
+  }
+})
 
 export default app

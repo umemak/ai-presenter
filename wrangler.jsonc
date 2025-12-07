@@ -8,5 +8,12 @@
   ],
   "ai": {
     "binding": "AI"
-  }
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ai-presenter-db",
+      "database_id": "placeholder"
+    }
+  ]
 }

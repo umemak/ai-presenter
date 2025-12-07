@@ -18,6 +18,7 @@ const elements = {
   processingStatus: document.getElementById('processing-status'),
   processingDetail: document.getElementById('processing-detail'),
   progressBar: document.getElementById('progress-bar'),
+  logoutBtn: document.getElementById('logout-btn'),
   
   currentSlideNum: document.getElementById('current-slide-num'),
   totalSlidesNum: document.getElementById('total-slides-num'),
@@ -34,6 +35,7 @@ elements.fileInput.addEventListener('change', handleFileUpload);
 elements.prevBtn.addEventListener('click', () => navigateSlide(-1));
 elements.nextBtn.addEventListener('click', () => navigateSlide(1));
 elements.playPauseBtn.addEventListener('click', togglePlay);
+elements.logoutBtn.addEventListener('click', handleLogout);
 
 // --- Core Functions ---
 
@@ -261,4 +263,23 @@ function resetUI() {
 function updateProcessingStatus(current, total, text) {
   elements.processingStatus.textContent = text;
   elements.processingDetail.textContent = `全体進捗: ${Math.round((current/total)*100)}%`;
+}
+
+// --- Logout Function ---
+async function handleLogout() {
+  try {
+    const response = await fetch('/api/logout', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (response.ok) {
+      window.location.href = '/login';
+    }
+  } catch (error) {
+    console.error('Logout error:', error);
+    alert('ログアウトに失敗しました');
+  }
 }

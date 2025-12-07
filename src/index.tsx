@@ -1,5 +1,7 @@
 import { Hono } from 'hono'
 import { renderer } from './renderer'
+import { loginPage } from './login'
+import { authMiddleware, login, setSession, clearSession } from './auth'
 
 type Bindings = {
   AI: any
@@ -7,6 +9,31 @@ type Bindings = {
 
 const app = new Hono<{ Bindings: Bindings }>()
 
+// 認証ミドルウェアを全ルートに適用
+app.use('*', authMiddleware)
+
+// ログインページ
+app.get('/login', loginPage)
+
+// ログインAPI
+app.post('/api/login', async (c) => {
+  const { username, password } = await c.req.json()
+  
+  if (login(username, password)) {
+    setSession(c)
+    return c.json({ success: true })
+  } else {
+    return c.json({ success: false, error: 'ユーザー名またはパスワードが正しくありません' }, 401)
+  }
+})
+
+// ログアウトAPI
+app.post('/api/logout', async (c) => {
+  clearSession(c)
+  return c.json({ success: true })
+})
+
+// メインページ（認証済みユーザーのみ）
 app.get('/', renderer)
 
 // API: Generate presentation script using Cloudflare Workers AI

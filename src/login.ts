@@ -65,15 +65,7 @@ export const loginPage = (c: Context) => {
             </button>
           </form>
 
-          <div class="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
-            <p class="text-xs text-blue-800 text-center">
-              <i class="fas fa-info-circle mr-1"></i>
-              デモ用の固定認証情報を使用してください
-            </p>
-            <p class="text-xs text-blue-600 text-center mt-2">
-              ユーザー名: <strong>admin</strong> / パスワード: <strong>password123</strong>
-            </p>
-          </div>
+
         </div>
 
         <script>

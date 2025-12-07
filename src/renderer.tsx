@@ -1,10 +1,11 @@
-import { jsxRenderer } from 'hono/jsx-renderer'
+import { Context } from 'hono'
 
-export const renderer = jsxRenderer(({ children }) => {
-  return (
-    <html>
+export const renderer = (c: Context) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="ja">
       <head>
-        <meta charSet="UTF-8" />
+        <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>AI Presenter</title>
         <script src="https://cdn.tailwindcss.com"></script>
@@ -14,7 +15,7 @@ export const renderer = jsxRenderer(({ children }) => {
           // PDF.js worker setup
           pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
         </script>
-        <style>{`
+        <style>
           .slide-container {
             aspect-ratio: 16/9;
             background-color: #f3f4f6;
@@ -22,11 +23,10 @@ export const renderer = jsxRenderer(({ children }) => {
           .loading-overlay {
             background: rgba(255, 255, 255, 0.9);
           }
-        `}</style>
+        </style>
       </head>
       <body class="bg-gray-50 min-h-screen text-gray-800">
         <div id="app" class="container mx-auto px-4 py-8 max-w-5xl">
-          {/* App content will be injected here by app.js */}
           <header class="mb-8 text-center">
             <h1 class="text-4xl font-bold text-blue-600 mb-2">
               <i class="fas fa-robot mr-2"></i>AI Presenter
@@ -35,7 +35,6 @@ export const renderer = jsxRenderer(({ children }) => {
           </header>
 
           <main id="main-content" class="bg-white rounded-xl shadow-lg p-6 min-h-[600px] relative">
-            {/* Dynamic Content */}
             <div id="upload-section" class="text-center py-20">
               <div class="mb-6">
                 <i class="fas fa-file-pdf text-6xl text-red-500 mb-4"></i>
@@ -103,5 +102,5 @@ export const renderer = jsxRenderer(({ children }) => {
         <script src="/static/app.js"></script>
       </body>
     </html>
-  )
-})
+  `)
+}

@@ -82,23 +82,62 @@ async function handleFileUpload(e) {
 }
 
 async function processSlides() {
+  // ===== 第1段階: 全スライドを画像化 =====
+  updateProcessingStatus(0, state.totalSlides, '全スライドを画像化しています...');
+  const slideImages = [];
+  
   for (let i = 0; i < state.totalSlides; i++) {
-    updateProcessingStatus(i, state.totalSlides, `スライド ${i + 1}/${state.totalSlides} を解析中... (Cloudflare AI)`);
+    const imageUrl = await renderPageToImage(i + 1);
+    state.slides[i].image = imageUrl;
+    slideImages.push(imageUrl);
+    
+    const progress = ((i + 1) / state.totalSlides) * 25; // 0-25%
+    elements.progressBar.style.width = `${progress}%`;
+  }
+  
+  // ===== 第2段階: 全体構成を解析 =====
+  updateProcessingStatus(0, state.totalSlides, 'プレゼンテーション全体の構成を解析中... (Cloudflare AI)');
+  
+  let structure = "";
+  let descriptions = [];
+  
+  try {
+    const structureRes = await fetch('/api/analyze-structure', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slides: slideImages })
+    });
+    
+    if (structureRes.ok) {
+      const structureData = await structureRes.json();
+      structure = structureData.structure;
+      descriptions = structureData.descriptions;
+      console.log("全体構成:", structure);
+    } else {
+      console.warn("Structure analysis failed, continuing with individual scripts");
+    }
+  } catch (err) {
+    console.error("Structure analysis error:", err);
+  }
+  
+  elements.progressBar.style.width = '30%'; // 30%
+  
+  // ===== 第3段階: 全体構成を踏まえて各スライドの原稿を生成 =====
+  for (let i = 0; i < state.totalSlides; i++) {
+    updateProcessingStatus(i, state.totalSlides, `スライド ${i + 1}/${state.totalSlides} の原稿を生成中... (Cloudflare AI)`);
     
     try {
-      // 1. Convert PDF page to Image
-      const imageUrl = await renderPageToImage(i + 1);
-      state.slides[i].image = imageUrl;
+      const description = descriptions[i] || `スライド${i + 1}の内容`;
       
-      // 2. Generate Script (Cloudflare Workers AI)
-      let context = "";
-      if (i === 0) context = "これは最初のスライドです。導入を含めてください。";
-      else if (i === state.totalSlides - 1) context = "これは最後のスライドです。締めを含めてください。";
-
       const scriptRes = await fetch('/api/generate-script', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: imageUrl, context })
+        body: JSON.stringify({ 
+          slideNumber: i + 1,
+          description: description,
+          structure: structure,
+          totalSlides: state.totalSlides
+        })
       });
       
       if (!scriptRes.ok) throw new Error('Script generation failed');
@@ -107,13 +146,13 @@ async function processSlides() {
       state.slides[i].status = 'ready';
 
     } catch (err) {
-      console.error(`Error processing slide ${i+1}:`, err);
+      console.error(`Error generating script for slide ${i+1}:`, err);
       state.slides[i].status = 'error';
-      state.slides[i].script = '(AI解析エラー: スライドの内容を読み取れませんでした)';
+      state.slides[i].script = '(AI原稿生成エラー: スライドの内容を読み取れませんでした)';
     }
     
-    // Update progress bar
-    const progress = ((i + 1) / state.totalSlides) * 100;
+    // Update progress bar (30% - 100%)
+    const progress = 30 + ((i + 1) / state.totalSlides) * 70;
     elements.progressBar.style.width = `${progress}%`;
   }
 }
